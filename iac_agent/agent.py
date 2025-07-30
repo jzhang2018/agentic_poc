@@ -3,6 +3,7 @@
 from smolagents import LiteLLMModel, CodeAgent
 from tools.validate_yaml import ValidateYAMLTool
 from dotenv import load_dotenv
+from .smart_code_agent import SmartCodeAgent
 import os
 
 # load .env file (i.e., openai api key)
@@ -14,11 +15,11 @@ model = LiteLLMModel(
     api_key = os.getenv("OPENAI_API_KEY")
 )
 
-# Create the agent
-agent = CodeAgent(
+# Create the agent from SmartCodeAgent
+agent = SmartCodeAgent(
     model = model,
-    max_steps = 5,
-    tools = [ ValidateYAMLTool()]
+    max_steps = 3,
+    tools = [ ValidateYAMLTool()]   # dynamically used during reasoning 
 )
 
 # Core function to generate a playbook from a high-level admin task
