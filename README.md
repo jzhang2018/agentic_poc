@@ -34,3 +34,9 @@ This is a POC for agentic ai exercise. The end-to-end use case is:
                     | - Save playbook.yaml |
                     | - Run it w/ Ansible  |
                     +----------------------+
+
+Design Pattern:  Feedback-Driven Agent Loop </br>
+
+🧠 Task → [ LLM → Code ] → [ Dry Run ] → [ Success ✅ | Feedback ❌ → Retry ] </br>
+
+Goal-driven and technology-agnostic agent architecture </br>
