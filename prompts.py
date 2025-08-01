@@ -6,9 +6,9 @@ PROMPT_TEMPLATES = {
                   - Use native Ansible modules when possible.
                   - Use fully qualified collection names (e.g., ansible.builtin.shell).
                   - Use check_mode: false for all ansible.builtin.shell or ansible.builtin.command tasks.
-                  - heck_mode, become, and similar task-level attributes must be top-level keys within a task, not nested inside the module dictionary.
+                  - check_mode, become, and similar task-level attributes must be top-level keys within a task, not nested inside the module dictionary.
                   - When use ansible.builtin.shell or ansible.builtin.command, make sure to quote the entire command string
-                  - Use become: true when elevation is needed.
+                  - Use become_user: root when the elevation is needed.
                   - Provide the following data as YAML, **without** wrapping it in triple backticks or markdown 
                     code fences. Do **not** include '```' or any additional formatting—just the raw YAML content.
                   - You MUST call the 'parse_yaml' tool with the YAML string after generating it. Do not parse YAML manually. Only use the tool. No exceptions!!!
