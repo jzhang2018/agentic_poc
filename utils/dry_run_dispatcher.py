@@ -14,7 +14,7 @@ def run_dry_run(task_type: str, content: str) -> str:
         str: Result of the dry run.
     """
     dispatch_map = {
-        "ansible": ansible_dry_run,
+        "ansible": ansible_dry_run
         # Future types:
         # "terraform": terraform_dry_run,
         # "docker": docker_dry_run,

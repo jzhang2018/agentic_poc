@@ -36,7 +36,6 @@ This is a POC for agentic ai exercise. The end-to-end use case is:
                     +----------------------+
 
 Design Pattern:  Feedback-Driven Agent Loop </br>
-
-🧠 Task → [ LLM → Code ] → [ Dry Run ] → [ Success ✅ | Feedback ❌ → Retry ] </br>
+Task → LLM Reasoning (Parsed Plan → Code) → Code Output  → Dry Run → Evaluate → [ Success ✅ | Feedback ❌ → Retry ] </br>
 
 Goal-driven and technology-agnostic agent architecture </br>
