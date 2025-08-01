@@ -4,9 +4,7 @@ import yaml
 from smolagents.tools import Tool
 
 class YamlParserTool(Tool):
-    
-    print("++++++++++++++ I AM YamlParserTool ++++++++++++++")
-    name = "parse_yaml"
+    name = "parse_yaml" # reconized in prompt
     description = "Parses a YAML string into a Python dictionary."
     inputs = {
         "yaml_str": {"type": "string", "description": "YAML formatted string"}

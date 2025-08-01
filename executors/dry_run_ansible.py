@@ -1,56 +1,96 @@
-# executors/dry_run_ansible.py
+# executor/dry_run_ansible.py
 
 import tempfile
 import subprocess
-import os
-import yaml
+import os, re, yaml, ast
 
-def patch_playbook_for_localhost(playbook_str: str) -> str:
+def sanitize_playbook(runbook):
+    """Sanitize commands in the playbook by removing surrounding quotes from strings."""
+    if not isinstance(runbook, dict):
+        return runbook
+
+    playbook = runbook.get("playbook")
+    if not isinstance(playbook, list):
+        return runbook
+
+    for play in playbook:
+        tasks = play.get("tasks", [])
+        for task in tasks:
+            for module_name, module_args in task.items():
+                if isinstance(module_args, dict):
+                    for key in ['cmd', '_raw_params']:
+                        if key in module_args and isinstance(module_args[key], str):
+                            val = module_args[key].strip()
+                            if val.startswith('"') and val.endswith('"'):
+                                module_args[key] = val[1:-1]
+    return runbook
+
+def split_playbook_and_inventory(runbook_obj) -> tuple[str, str]:
     """
-    Patch the playbook string to ensure safe dry run:
-    - Set hosts to localhost
-    - Set connection to local
-    - Disable facts gathering
+    Expects a dict-like object with 'playbook' and 'inventory' keys.
+    Falls back to literal_eval if needed.
     """
+    raw_text = str(runbook_obj)
+    print("👉👉 raw_text:\n" + raw_text + "👈👈")
+
+    # 1. Try literal_eval for Python dict-style final_answer
     try:
-        docs = yaml.safe_load(playbook_str)
-    except yaml.YAMLError as e:
-        raise ValueError(f"Invalid YAML in playbook: {e}")
+        parsed = ast.literal_eval(raw_text)
+        if isinstance(parsed, dict) and "playbook" in parsed and "inventory" in parsed:
+            playbook_yaml = yaml.dump(parsed["playbook"], sort_keys=False)
+            return playbook_yaml.strip(), parsed["inventory"].strip()
+    except Exception as e:
+        print(f"[Fallback Parsing Error] {e}")
 
-    # If the playbook is a list of plays (common structure)
-    if isinstance(docs, list):
-        for play in docs:
-            if isinstance(play, dict):
-                play["hosts"] = "localhost"
-                play["connection"] = "local"
-                play["gather_facts"] = False
-    else:
-        raise ValueError("Playbook content is not a list of plays")
+    # 2. Legacy fallback: regex for raw strings inside final_answer(...)
+    match = re.search(r"final_answer\s*\(\s*(\{.*\})\s*\)", raw_text, re.DOTALL)
+    if match:
+        try:
+            parsed = ast.literal_eval(match.group(1))
+            if isinstance(parsed, dict) and "playbook" in parsed and "inventory" in parsed:
+                playbook_yaml = yaml.dump(parsed["playbook"], sort_keys=False)
+                return playbook_yaml.strip(), parsed["inventory"].strip()
+        except Exception as e:
+            print(f"[Regex fallback parsing error] {e}")
 
-    return yaml.dump(docs, sort_keys=False)
+    raise ValueError("Could not extract both playbook and inventory from runbook.")
 
-def ansible_dry_run(playbook_str: str) -> str:
+def ansible_dry_run(runbook) -> str:
     """
-    Perform a dry run of the given Ansible playbook after patching it.
-
-    Args:
-        playbook_str (str): The playbook content as a string.
-
-    Returns:
-        str: Output from the Ansible dry run.
+    Takes a runbook (AgentText or str), extracts playbook/inventory, and performs dry run.
     """
-    patched_playbook = patch_playbook_for_localhost(playbook_str)
+    # Sanitize runbook
+    sanitized_runbook = sanitize_playbook(runbook)
+    
+    playbook_str, inventory_str = split_playbook_and_inventory(sanitized_runbook)
 
-    print("++++++++++++++++++++++++ Patched playbook: ")
-    print(patched_playbook)
+    print("Playbook 👉👉\n" + playbook_str + "\n👈👈")
+    print("Inventory 👉👉\n" + inventory_str + "\n👈👈")
 
-    with tempfile.NamedTemporaryFile(mode='w+', suffix=".yml", delete=False) as temp_file:
-        temp_file.write(patched_playbook)
-        temp_file_path = temp_file.name
+    with tempfile.NamedTemporaryFile(mode='w+', suffix=".yml", delete=False) as playbook_file, \
+         tempfile.NamedTemporaryFile(mode='w+', suffix=".ini", delete=False) as inventory_file:
+        
+        playbook_file.write(playbook_str)
+        inventory_file.write(inventory_str)
+
+        safe_tmp_dir = "/var/tmp/ansible_run"        
+        os.makedirs(safe_tmp_dir, exist_ok=True)
+
+        playbook_path = os.path.join(safe_tmp_dir, "playbook.yml")
+        inventory_path = os.path.join(safe_tmp_dir, "inventory.ini")
+
+        with open(playbook_path, "w") as playbook_file:
+            playbook_file.write(playbook_str)
+
+        with open(inventory_path, "w") as inventory_file:
+            inventory_file.write(inventory_str)
+
+        print("Playbook file path 👉👉\n" + playbook_path + "\n👈👈")
+        print("Inventory file path 👉👉\n" + inventory_path + "\n👈👈")
 
     try:
         result = subprocess.run(
-            ["ansible-playbook", "--check", temp_file_path],
+            ["ansible-playbook", "--check", "-i", inventory_path, playbook_path, "--ask-pass"],
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -59,5 +99,5 @@ def ansible_dry_run(playbook_str: str) -> str:
         return result.stdout + result.stderr
 
     finally:
-        if os.path.exists(temp_file_path):
-            os.remove(temp_file_path)
+        os.remove(playbook_path)
+        os.remove(inventory_path)
